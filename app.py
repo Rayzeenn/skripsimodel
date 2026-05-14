@@ -6,12 +6,20 @@ import streamlit as st
 import torch
 from PIL import Image
 
-original_torch_load = torch.load
-def patched_torch_load(*args, **kwargs):
-    if 'weights_only' not in kwargs:
-        kwargs['weights_only'] = False
-    return original_torch_load(*args, **kwargs)
-torch.load = patched_torch_load
+# ─── FIX BUG PYTORCH 2.6+ (SAFE GLOBALS) ──────────────────────────────────────
+# Mendaftarkan numpy agar tidak diblokir saat memuat file .pt YOLOv5 lama
+try:
+    from torch.serialization import add_safe_globals
+    add_safe_globals([
+        np.core.multiarray._reconstruct,
+        np.ndarray,
+        np.dtype,
+        np.core.multiarray.scalar,
+        type(np.dtype('float64'))
+    ])
+    os.environ['TORCH_FORCE_WEIGHTS_ONLY_LOAD'] = '0'
+except Exception as e:
+    pass
 # ──────────────────────────────────────────────────────────────────────────────
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
@@ -21,7 +29,6 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-
 # ─── Custom CSS ───────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
