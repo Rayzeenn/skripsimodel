@@ -429,15 +429,19 @@ with tab1:
                     cap.release()
                     out.release()
                     
-                    # KONVERSI VIDEO AGAR BISA DIKIRIM KE WHATSAPP (H.264)
                     with st.spinner("Menyempurnakan format video untuk WhatsApp..."):
                         try:
-                            # Memanggil FFmpeg bawaan server Linux untuk konversi ke H.264
-                            subprocess.run(['ffmpeg', '-y', '-i', raw_output_path, '-vcodec', 'libx264', final_output_path], 
-                                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            # Memanggil FFmpeg bawaan server Linux untuk konversi ke H.264 standar WA
+                            subprocess.run([
+                                'ffmpeg', '-y', '-i', raw_output_path, 
+                                '-vcodec', 'libx264', 
+                                '-pix_fmt', 'yuv420p', # <--- MAGIC CODE UNTUK WHATSAPP/HP
+                                final_output_path
+                            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                             download_path = final_output_path
                         except Exception as e:
-                            # Jika FFmpeg gagal, tetap berikan video mp4v sebagai cadangan
+                            # Jika FFmpeg gagal, berikan peringatan di layar
+                            st.warning("⚠️ Peringatan: Sistem gagal mengonversi video ke format WhatsApp. Pastikan file packages.txt sudah berisi 'ffmpeg'.")
                             download_path = raw_output_path
                     
                     video_screen.empty()
