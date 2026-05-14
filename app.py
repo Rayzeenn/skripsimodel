@@ -278,85 +278,150 @@ with tab1:
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
-        st.markdown("#### 📤 Input Gambar")
-        input_mode = st.radio("Sumber Input", ["Upload File", "Kamera (Foto)", "Live Video (WebRTC)"], horizontal=True)
+        st.markdown("#### 📤 Input Media")
+        # Tambahkan opsi "Upload Video" di pilihan radio button
+        input_mode = st.radio("Sumber Input", ["Upload Gambar", "Kamera (Foto)", "Upload Video", "Live Video (WebRTC)"], horizontal=True)
         apply_clahe_toggle = st.checkbox("Terapkan CLAHE Enhancement", value=True)
 
         image_input = None
-        if input_mode == "Upload File":
+        uploaded_video = None # Variabel khusus untuk video
+
+        if input_mode == "Upload Gambar":
             uploaded = st.file_uploader("Pilih gambar", type=["jpg", "jpeg", "png", "bmp", "webp"])
             if uploaded:
                 from PIL import ImageOps
-                # Membaca EXIF agar gambar tegak secara otomatis
                 pil_img = ImageOps.exif_transpose(Image.open(uploaded)).convert("RGB")
                 image_input = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
                 
         elif input_mode == "Kamera (Foto)":
-            camera_img = st.camera_input("Ambil foto")
+            camera_img = st.camera_input("Ambil foto statis")
             if camera_img:
                 image_input = cv2.cvtColor(np.array(Image.open(camera_img).convert("RGB")), cv2.COLOR_RGB2BGR)
+
+        elif input_mode == "Upload Video":
+            uploaded_video = st.file_uploader("Upload file video", type=["mp4", "avi", "mov", "mkv"])
+            if uploaded_video:
+                st.success("🎥 Video berhasil dimuat! Klik tombol 'Mulai Proses Video' di sebelah kanan.")
                 
         elif input_mode == "Live Video (WebRTC)":
-            st.markdown('<div class="info-box">🔴 <b>Live Camera Aktif.</b> Izinkan akses kamera pada browser Anda.</div>', unsafe_allow_html=True)
+            st.markdown('<div class="info-box">🔴 <b>Live Camera Aktif.</b> (Performa bergantung pada CPU perangkat)</div>', unsafe_allow_html=True)
             
-            RTC_CONFIGURATION = RTCConfiguration({
-                "iceServers": [
-                    {"urls": ["stun:stun.l.google.com:19302"]},
-                    {"urls": ["stun:stun1.l.google.com:19302"]},
-                    {"urls": ["stun:stun2.l.google.com:19302"]},
-                    {"urls": ["stun:stun3.l.google.com:19302"]},
-                    {"urls": ["stun:stun4.l.google.com:19302"]},
-                    {"urls": ["stun:global.stun.twilio.com:3478"]}
-                ]
-            })
+            RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
             class FaceVideoProcessor(VideoTransformerBase):
                 def __init__(self):
+                    import time
                     self.detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
                     self.enhancer = CLAHEEnhancer(clip_limit, (tile_w, tile_h))
                     self.facenet = load_facenet()
+                    self.last_process_time = 0
+                    self.last_dets = []
+                    self.last_labels = {}
 
                 def transform(self, frame):
+                    import time
                     img = frame.to_ndarray(format="bgr24")
                     
                     if apply_clahe_toggle:
                         self.enhancer.update_params(clip_limit, (tile_w, tile_h))
-                        processed = self.enhancer.enhance(img)
+                        display_img = self.enhancer.enhance(img)
                     else:
-                        processed = img.copy()
+                        display_img = img.copy()
 
-                    detections = self.detector.detect(processed)
-                    
-                    labels_map = {}
-                    db = st.session_state.face_db 
-                    if self.facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
-                        for det in detections:
-                            face_crop = self.detector.crop_face(processed, det)
-                            if face_crop is not None:
-                                emb = get_embedding(face_crop, self.facenet)
-                                sims = np.dot(db["embeddings"], emb)
-                                best_idx = np.argmax(sims)
-                                best_sim = float(sims[best_idx])
-                                if best_sim >= similarity_threshold:
-                                    labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
-                    
-                    result_img = draw_detections(processed, detections, labels_map)
-                    return result_img
+                    current_time = time.time()
+                    if current_time - self.last_process_time >= 1.0:
+                        self.last_process_time = current_time
+                        detections = self.detector.detect(display_img)
+                        labels_map = {}
+                        db = st.session_state.face_db 
+                        if self.facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
+                            for det in detections:
+                                face_crop = self.detector.crop_face(display_img, det)
+                                if face_crop is not None:
+                                    emb = get_embedding(face_crop, self.facenet)
+                                    sims = np.dot(db["embeddings"], emb)
+                                    best_idx = np.argmax(sims)
+                                    if float(sims[best_idx]) >= similarity_threshold:
+                                        labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
+                        self.last_dets = detections
+                        self.last_labels = labels_map
 
-            webrtc_streamer(
-                key="face-recognition",
-                mode=WebRtcMode.SENDRECV, # <-- INI YANG DIUBAH
-                rtc_configuration=RTC_CONFIGURATION,
-                video_transformer_factory=FaceVideoProcessor,
-                media_stream_constraints={"video": True, "audio": False},
-                async_transform=True
-            )
+                    return draw_detections(display_img, self.last_dets, self.last_labels)
+
+            webrtc_streamer(key="face-recognition", mode=WebRtcMode.SENDRECV, rtc_configuration=RTC_CONFIGURATION, video_transformer_factory=FaceVideoProcessor, media_stream_constraints={"video": True, "audio": False}, async_transform=True)
 
     with col_right:
         st.markdown("#### 🔍 Hasil Deteksi")
 
-        # Jika mode BUKAN live video, jalankan pemrosesan foto statis
-        if input_mode != "Live Video (WebRTC)":
+        # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
+        if input_mode == "Upload Video":
+            if uploaded_video is not None:
+                if st.button("▶️ Mulai Proses Video", use_container_width=True):
+                    # 1. Simpan video ke file sementara agar bisa dibaca OpenCV
+                    import tempfile
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
+                        tfile.write(uploaded_video.read())
+                        temp_video_path = tfile.name
+
+                    cap = cv2.VideoCapture(temp_video_path)
+                    
+                    # Placeholder untuk merender frame video seperti layar bioskop
+                    video_screen = st.empty() 
+                    
+                    detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
+                    clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
+                    
+                    frame_count = 0
+                    last_dets = []
+                    last_labels = {}
+                    
+                    # Trik Optimasi untuk i3: Skip 2 frame agar video diputar lebih cepat
+                    SKIP_FRAMES = 3 
+
+                    with st.spinner("Memproses video... (Silakan tunggu hingga selesai)"):
+                        while cap.isOpened():
+                            ret, frame = cap.read()
+                            if not ret:
+                                break
+                                
+                            frame_count += 1
+                            
+                            if apply_clahe_toggle:
+                                display_img = clahe_enhancer.enhance(frame)
+                            else:
+                                display_img = frame.copy()
+
+                            # Hanya proses AI di frame tertentu, sisanya pakai deteksi terakhir
+                            if frame_count % SKIP_FRAMES == 0 or frame_count == 1:
+                                detections = detector.detect(display_img)
+                                labels_map = {}
+                                db = st.session_state.face_db 
+                                if facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
+                                    for det in detections:
+                                        face_crop = detector.crop_face(display_img, det)
+                                        if face_crop is not None:
+                                            emb = get_embedding(face_crop, facenet)
+                                            sims = np.dot(db["embeddings"], emb)
+                                            best_idx = np.argmax(sims)
+                                            if float(sims[best_idx]) >= similarity_threshold:
+                                                labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
+                                
+                                last_dets = detections
+                                last_labels = labels_map
+
+                            result_img = draw_detections(display_img, last_dets, last_labels)
+                            
+                            # Update gambar di layar
+                            video_screen.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), use_container_width=True)
+                            
+                    cap.release()
+                    os.unlink(temp_video_path) # Hapus file sampah
+                    st.success("✅ Pemutaran video selesai!")
+            else:
+                st.info("🎥 Upload file video (.mp4) terlebih dahulu di sebelah kiri.")
+
+        # LOGIKA GAMBAR STATIS (Upload Gambar & Kamera Foto)
+        elif input_mode in ["Upload Gambar", "Kamera (Foto)"]:
             if image_input is not None:
                 clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
                 processed = clahe_enhancer.enhance(image_input) if apply_clahe_toggle else image_input.copy()
@@ -401,19 +466,10 @@ with tab1:
 
                 result_img = draw_detections(processed, detections, labels_map)
                 st.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), caption=f"{'CLAHE Enhanced' if apply_clahe_toggle else 'Original'} — {len(detections)} wajah terdeteksi", use_container_width=True)
-
-                m1, m2, m3 = st.columns(3)
-                with m1:
-                    st.markdown(f'<div class="metric-card"><div class="metric-label">Wajah Terdeteksi</div><div class="metric-value">{len(detections)}</div></div>', unsafe_allow_html=True)
-                with m2:
-                    st.markdown(f'<div class="metric-card"><div class="metric-label">Avg Brightness</div><div class="metric-value">{np.mean(cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)):.0f}</div></div>', unsafe_allow_html=True)
-                with m3:
-                    best_conf = max([d[4] for d in detections], default=0)
-                    st.markdown(f'<div class="metric-card"><div class="metric-label">Best Confidence</div><div class="metric-value">{best_conf:.2f}</div></div>', unsafe_allow_html=True)
             else:
-                st.info("📷 Upload gambar atau aktifkan kamera untuk memulai deteksi.")
-        else:
-            # Info untuk mode Live Video
+                st.info("📷 Upload gambar atau ambil foto untuk memulai deteksi.")
+                
+        elif input_mode == "Live Video (WebRTC)":
             st.info("🔴 Hasil deteksi Live Video ditampilkan langsung di pemutar kamera sebelah kiri.")
 
 # ═══════════════════════════════════════════════════════════════════════════════
