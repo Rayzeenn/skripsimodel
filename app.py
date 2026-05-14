@@ -220,11 +220,16 @@ def draw_detections(image_bgr: np.ndarray, detections: list, labels_map: dict = 
     img = image_bgr.copy()
     for det in detections:
         x1, y1, x2, y2, conf = int(det[0]), int(det[1]), int(det[2]), int(det[3]), det[4]
+        
         cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 180), 2)
-        label_text = f"{conf:.2f}"
+        
         if labels_map and (x1, y1) in labels_map:
             label_text = labels_map[(x1, y1)]
-        cv2.putText(img, label_text, (x1, max(y1 - 8, 12)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 180), 2)
+        else:
+            label_text = f"Person {conf:.2f}" 
+            
+        cv2.putText(img, label_text, (x1, max(y1 - 8, 12)), 
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 180), 2)
     return img
 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
@@ -336,13 +341,14 @@ with tab1:
                         db = st.session_state.face_db 
                         if self.facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
                             for det in detections:
-                                face_crop = self.detector.crop_face(display_img, det)
-                                if face_crop is not None:
-                                    emb = get_embedding(face_crop, self.facenet)
-                                    sims = np.dot(db["embeddings"], emb)
-                                    best_idx = np.argmax(sims)
-                                    if float(sims[best_idx]) >= similarity_threshold:
-                                        labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
+                            face_crop = self.detector.crop_face(processed, det)
+                            if face_crop is not None:
+                                emb = get_embedding(face_crop, self.facenet)
+                                sims = np.dot(db["embeddings"], emb)
+                                best_idx = np.argmax(sims)
+                                best_sim = float(sims[best_idx])
+                                if best_sim >= similarity_threshold:
+                                    labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
                         self.last_dets = detections
                         self.last_labels = labels_map
 
@@ -502,9 +508,9 @@ with tab1:
 
                         if best_sim >= similarity_threshold:
                             labels_map[(int(det[0]), int(det[1]))] = best_name
-                            badge_class, status = "badge-green", f"✅ {best_name}"
+                            badge_class, status = "badge-green", f" {best_name}"
                         else:
-                            badge_class, status = "badge-yellow", "❓ Tidak dikenal"
+                            badge_class, status = "badge-yellow", "Person (Unknown)"
 
                         st.markdown(f"""
                         <div class="result-card">
@@ -517,10 +523,10 @@ with tab1:
                 result_img = draw_detections(processed, detections, labels_map)
                 st.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), caption=f"{'CLAHE Enhanced' if apply_clahe_toggle else 'Original'} — {len(detections)} wajah terdeteksi", use_container_width=True)
             else:
-                st.info("📷 Upload gambar atau ambil foto untuk memulai deteksi.")
+                st.info("Upload gambar atau ambil foto untuk memulai deteksi.")
                 
         elif input_mode == "Live Video (WebRTC)":
-            st.info("🔴 Hasil deteksi Live Video ditampilkan langsung di pemutar kamera sebelah kiri.")
+            st.info("Hasil deteksi Live Video ditampilkan langsung di pemutar kamera sebelah kiri.")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2: Database Management
