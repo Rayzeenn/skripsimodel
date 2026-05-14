@@ -6,7 +6,7 @@ import streamlit as st
 import torch
 from PIL import Image
 import pathlib
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration, WebRtcMode
 import av
 
 # ─── FIX BUG PYTORCH 2.6+ (SAFE GLOBALS & MONKEY PATCH) ───────────────────────
@@ -338,7 +338,7 @@ with tab1:
 
             webrtc_streamer(
                 key="face-recognition",
-                mode=1, 
+                mode=WebRtcMode.SENDRECV, # <-- INI YANG DIUBAH
                 rtc_configuration=RTC_CONFIGURATION,
                 video_transformer_factory=FaceVideoProcessor,
                 media_stream_constraints={"video": True, "audio": False},
