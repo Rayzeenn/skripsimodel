@@ -334,7 +334,7 @@ with st.sidebar:
     st.markdown("### 📁 Model Path")
     yolo_weights = st.text_input(
         "YOLOv5-Face Weights",
-        value="weights/best.pt",
+        value="best.pt",
         help="Path ke file best.pt dari YOLOv5-face"
     )
     yolo_repo_path = st.text_input(
