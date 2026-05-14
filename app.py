@@ -429,7 +429,7 @@ with tab1:
                     cap.release()
                     out.release()
                     
-                    with st.spinner("Menyempurnakan format video untuk WhatsApp..."):
+                    with st.spinner("Menyempurnakan format video..."):
                         try:
                             # Memanggil FFmpeg bawaan server Linux untuk konversi ke H.264 standar WA
                             subprocess.run([
