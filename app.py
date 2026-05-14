@@ -357,7 +357,7 @@ with tab1:
         # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
         if input_mode == "Upload Video":
             if uploaded_video is not None:
-                if st.button("▶️ Mulai Proses Video", use_container_width=True):
+                if st.button("Mulai Proses Video", use_container_width=True):
                     import tempfile
                     import subprocess # Tambahkan ini untuk memanggil FFmpeg
                     
@@ -441,7 +441,7 @@ with tab1:
                             download_path = final_output_path
                         except Exception as e:
                             # Jika FFmpeg gagal, berikan peringatan di layar
-                            st.warning("⚠️ Peringatan: Sistem gagal mengonversi video ke format WhatsApp. Pastikan file packages.txt sudah berisi 'ffmpeg'.")
+                            st.warning("Peringatan: Sistem gagal mengonversi video ke format WhatsApp. Pastikan file packages.txt sudah berisi 'ffmpeg'.")
                             download_path = raw_output_path
                     
                     video_screen.empty()
@@ -449,10 +449,10 @@ with tab1:
                     
                     # PASTIKAN FILE BENAR-BENAR ADA SEBELUM DIBUKA
                     if os.path.exists(download_path):
-                        st.success("✅ Pemrosesan video selesai!")
+                        st.success("Pemrosesan video selesai!")
                         with open(download_path, "rb") as file:
                             st.download_button(
-                                label="⬇️ Download Video Hasil Deteksi (Siap Kirim WA)",
+                                label="Download Video Hasil Deteksi",
                                 data=file,
                                 file_name="FaceVision_WA_Ready.mp4",
                                 mime="video/mp4",
@@ -460,7 +460,7 @@ with tab1:
                             )
                         st.video(download_path)
                     else:
-                        st.error("❌ Terjadi kesalahan: Gagal menyimpan file video ke server.")
+                        st.error("Terjadi kesalahan: Gagal menyimpan file video ke server.")
                     
                     # Hapus file mentah untuk menghemat memori server
                     try: os.unlink(temp_video_path)
