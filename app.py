@@ -339,16 +339,17 @@ with tab1:
                         detections = self.detector.detect(display_img)
                         labels_map = {}
                         db = st.session_state.face_db 
+                        
                         if self.facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
                             for det in detections:
-                            face_crop = self.detector.crop_face(processed, det)
-                            if face_crop is not None:
-                                emb = get_embedding(face_crop, self.facenet)
-                                sims = np.dot(db["embeddings"], emb)
-                                best_idx = np.argmax(sims)
-                                best_sim = float(sims[best_idx])
-                                if best_sim >= similarity_threshold:
-                                    labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
+                                face_crop = self.detector.crop_face(display_img, det)
+                                if face_crop is not None:
+                                    emb = get_embedding(face_crop, self.facenet)
+                                    sims = np.dot(db["embeddings"], emb)
+                                    best_idx = np.argmax(sims)
+                                    if float(sims[best_idx]) >= similarity_threshold:
+                                        labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
+                        
                         self.last_dets = detections
                         self.last_labels = labels_map
 
