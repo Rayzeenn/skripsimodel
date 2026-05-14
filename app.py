@@ -378,7 +378,7 @@ with tab1:
                     
                     # Siapkan OpenCV VideoWriter untuk merekam hasil
                     # Menggunakan codec 'mp4v' karena paling stabil di server Linux
-                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    fourcc = cv2.VideoWriter_fourcc(*'avc1')
                     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
                     
                     # Tampilan progress
