@@ -5,7 +5,14 @@ import numpy as np
 import streamlit as st
 import torch
 from PIL import Image
-from collections import defaultdict
+
+original_torch_load = torch.load
+def patched_torch_load(*args, **kwargs):
+    if 'weights_only' not in kwargs:
+        kwargs['weights_only'] = False
+    return original_torch_load(*args, **kwargs)
+torch.load = patched_torch_load
+# ──────────────────────────────────────────────────────────────────────────────
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
 st.set_page_config(
