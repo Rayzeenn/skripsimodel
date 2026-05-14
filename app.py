@@ -352,7 +352,7 @@ with tab1:
             st.info("📷 Upload gambar atau aktifkan kamera untuk memulai deteksi.")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# TAB 2 & TAB 3
+# TAB 2: Database Management
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab2:
     st.markdown("#### 🗄️ Database Wajah (Gallery)")
@@ -385,6 +385,53 @@ with tab2:
                 db["face_images"].append(face_crop.copy())
                 st.success(f"✅ {person_name} berhasil ditambahkan!")
 
+        # --- FITUR NPZ YANG DIKEMBALIKAN ---
+        st.markdown("---")
+        st.markdown("**📂 Load dari .npz File**")
+        npz_file = st.file_uploader("Upload file .npz (dari Kaggle preprocessing)", type=["npz"], key="npz_upload")
+        if st.button("📥 Load NPZ Database", disabled=(npz_file is None)):
+            if npz_file:
+                with st.spinner("Memuat database..."):
+                    try:
+                        import tempfile
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".npz") as tmp:
+                            tmp.write(npz_file.read())
+                            tmp_path = tmp.name
+
+                        data = np.load(tmp_path, allow_pickle=True)
+                        faces_arr = data["faces"]
+                        labels_arr = data["labels"]
+
+                        if facenet:
+                            all_embs = []
+                            BATCH = 32
+                            progress = st.progress(0)
+                            for start in range(0, len(faces_arr), BATCH):
+                                batch = faces_arr[start:start+BATCH]
+                                tensors = []
+                                for f in batch:
+                                    rgb = cv2.cvtColor(f, cv2.COLOR_BGR2RGB)
+                                    t = torch.tensor(rgb, dtype=torch.float32)
+                                    t = (t - 127.5) / 128.0
+                                    tensors.append(t.permute(2, 0, 1))
+                                with torch.no_grad():
+                                    e = facenet(torch.stack(tensors).to(DEVICE)).cpu().detach().numpy()
+                                norms = np.linalg.norm(e, axis=1, keepdims=True) + 1e-10
+                                all_embs.append(e / norms)
+                                progress.progress(min((start+BATCH)/len(faces_arr), 1.0))
+
+                            all_embs = np.vstack(all_embs).astype("float32")
+                            st.session_state.face_db = {
+                                "embeddings": all_embs,
+                                "names": list(labels_arr),
+                                "face_images": list(faces_arr),
+                            }
+                            st.success(f"✅ Database dimuat: {len(faces_arr)} wajah, {len(set(labels_arr))} orang")
+                        os.unlink(tmp_path)
+                    except Exception as e:
+                        st.error(f"Gagal memuat NPZ: {e}")
+        # ------------------------------------
+
     with col_list:
         st.markdown("**📋 Isi Database Saat Ini**")
         db = st.session_state.face_db
@@ -398,7 +445,6 @@ with tab2:
             if st.button("🗑️ Hapus Semua Data"):
                 st.session_state.face_db = { "embeddings": np.zeros((0, 512), dtype="float32"), "names": [], "face_images": [] }
                 st.rerun()
-
 with tab3:
     st.markdown("#### 📊 Evaluasi Efek CLAHE")
     eval_files = st.file_uploader("Upload gambar untuk evaluasi", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="eval_upload")
