@@ -7,19 +7,36 @@ import torch
 from PIL import Image
 
 # ─── FIX BUG PYTORCH 2.6+ (SAFE GLOBALS) ──────────────────────────────────────
-# Mendaftarkan numpy agar tidak diblokir saat memuat file .pt YOLOv5 lama
+# 1. Masukkan folder YOLO ke sys.path LEBIH AWAL agar kita bisa import class-nya
+YOLO_DIR = "yolov5-face"
+if os.path.exists(YOLO_DIR) and YOLO_DIR not in sys.path:
+    sys.path.insert(0, YOLO_DIR)
+
+# 2. Daftarkan class YOLO dan Numpy agar tidak diblokir PyTorch 2.6+
 try:
     from torch.serialization import add_safe_globals
+    from models.yolo import Model
+    from models.common import Conv, Bottleneck, SPP, Focus, BottleneckCSP, Concat
+    
     add_safe_globals([
         np.core.multiarray._reconstruct,
         np.ndarray,
         np.dtype,
         np.core.multiarray.scalar,
-        type(np.dtype('float64'))
+        type(np.dtype('float64')),
+        Model, Conv, Bottleneck, SPP, Focus, BottleneckCSP, Concat
     ])
     os.environ['TORCH_FORCE_WEIGHTS_ONLY_LOAD'] = '0'
 except Exception as e:
     pass
+
+# 3. Paksa override fungsi torch.load sebagai lapis keamanan tambahan
+_original_torch_load = torch.load
+def _patched_load(*args, **kwargs):
+    if 'weights_only' not in kwargs:
+        kwargs['weights_only'] = False
+    return _original_torch_load(*args, **kwargs)
+torch.load = _patched_load
 # ──────────────────────────────────────────────────────────────────────────────
 
 # ─── Page Config ──────────────────────────────────────────────────────────────
