@@ -301,7 +301,8 @@ class YOLOv5FaceDetector:
                 y1 = int(det[1] * h / 640)
                 x2 = int(det[2] * w / 640)
                 y2 = int(det[3] * h / 640)
-                conf = float(det[4])
+                # Clamp confidence ke 0-1 (YOLOv5 output bisa >1 sebelum sigmoid)
+                conf = float(np.clip(det[4], 0.0, 1.0))
                 if conf >= self.conf_threshold:
                     faces.append([x1, y1, x2, y2, conf])
 
@@ -515,19 +516,38 @@ with tab1:
                     if face_crop is None:
                         continue
                     emb = get_embedding(face_crop, facenet)
-                    sims = np.dot(db["embeddings"], emb)
+
+                    # Pastikan query embedding ternormalisasi (unit vector)
+                    emb_norm = np.linalg.norm(emb)
+                    if emb_norm > 1e-6:
+                        emb = emb / emb_norm
+
+                    # Pastikan DB embeddings ternormalisasi baris per baris
+                    db_embs = db["embeddings"]
+                    db_norms = np.linalg.norm(db_embs, axis=1, keepdims=True)
+                    db_norms = np.where(db_norms < 1e-6, 1.0, db_norms)
+                    db_embs_normed = db_embs / db_norms
+
+                    # Cosine similarity = dot product antara unit vectors
+                    sims = np.dot(db_embs_normed, emb)
+                    sims = np.clip(sims, -1.0, 1.0)  # clamp numerik
+
                     best_idx = np.argmax(sims)
                     best_sim = float(sims[best_idx])
                     best_name = db["names"][best_idx]
 
+                    # Top-3 kandidat untuk debug (tidak ditampilkan ke user)
+                    top3_idx  = np.argsort(sims)[::-1][:3]
+                    top3_info = [(db["names"][j], float(sims[j])) for j in top3_idx]
+
                     if best_sim >= similarity_threshold:
                         badge_class = "badge-green"
                         status = f"✅ {best_name}"
-                        note = f"Sim: {best_sim:.3f}"
+                        note = f"Sim: {best_sim:.3f} | Top3: {', '.join(f'{n}({s:.2f})' for n,s in top3_info)}"
                     else:
                         badge_class = "badge-yellow"
                         status = "❓ Tidak dikenal"
-                        note = f"Sim terbaik: {best_sim:.3f} (di bawah threshold)"
+                        note = f"Sim terbaik: {best_sim:.3f} < threshold {similarity_threshold} | Top3: {', '.join(f'{n}({s:.2f})' for n,s in top3_info)}"
 
                     st.markdown(f"""
                     <div class="result-card">
@@ -637,7 +657,21 @@ with tab2:
                                 "names": list(labels_arr),
                                 "face_images": list(faces_arr),
                             }
-                            st.success(f"✅ Database dimuat: {len(faces_arr)} wajah, {len(set(labels_arr))} orang")
+                            # Sanity check: deteksi jika embedding terlalu mirip satu sama lain
+                            sample_sims = []
+                            if len(all_embs) >= 10:
+                                sample_idx = np.random.choice(len(all_embs), min(50, len(all_embs)), replace=False)
+                            sample_pairs = [(sample_idx[i], sample_idx[i+1]) for i in range(0, len(sample_idx)-1, 2)]
+                            for ia, ib in sample_pairs[:10]:
+                                s = float(np.dot(all_embs[ia], all_embs[ib]))
+                                sample_sims.append(s)
+                            avg_sim = float(np.mean(sample_sims)) if sample_sims else 0
+
+                            msg = f"✅ Database dimuat: {len(faces_arr)} wajah, {len(set(labels_arr))} orang"
+                            if avg_sim > 0.95:
+                                st.warning(f"⚠️ {msg}\n\nPeringatan: rata-rata similarity antar embedding = {avg_sim:.3f} (terlalu tinggi!). Kemungkinan NPZ berisi wajah yang terlalu seragam atau preprocessing bermasalah.")
+                            else:
+                                st.success(f"{msg} | Avg inter-identity sim: {avg_sim:.3f}")
                         os.unlink(tmp_path)
                     except Exception as e:
                         st.error(f"Gagal memuat NPZ: {e}")
