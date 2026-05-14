@@ -299,9 +299,16 @@ with tab1:
         elif input_mode == "Live Video (WebRTC)":
             st.markdown('<div class="info-box">🔴 <b>Live Camera Aktif.</b> Izinkan akses kamera pada browser Anda.</div>', unsafe_allow_html=True)
             
-            RTC_CONFIGURATION = RTCConfiguration(
-                {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
-            )
+            RTC_CONFIGURATION = RTCConfiguration({
+                "iceServers": [
+                    {"urls": ["stun:stun.l.google.com:19302"]},
+                    {"urls": ["stun:stun1.l.google.com:19302"]},
+                    {"urls": ["stun:stun2.l.google.com:19302"]},
+                    {"urls": ["stun:stun3.l.google.com:19302"]},
+                    {"urls": ["stun:stun4.l.google.com:19302"]},
+                    {"urls": ["stun:global.stun.twilio.com:3478"]}
+                ]
+            })
 
             class FaceVideoProcessor(VideoTransformerBase):
                 def __init__(self):
