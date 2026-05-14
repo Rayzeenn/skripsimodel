@@ -1,4 +1,3 @@
-
 import os
 import sys
 import cv2
@@ -729,4 +728,4 @@ st.markdown("""
 <div style="text-align:center;color:#374151;font-size:0.75rem;font-family:'Space Mono',monospace;padding:1rem 0;">
     FaceVision CLAHE · YOLOv5-Face + FaceNet VGGFace2 · Real Input — No Simulation
 </div>
-""", unsafe_allow_html=True)``
+""", unsafe_allow_html=True)
