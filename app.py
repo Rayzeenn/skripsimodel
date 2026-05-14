@@ -354,34 +354,33 @@ with tab1:
         st.markdown("#### 🔍 Hasil Deteksi")
 
         # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
+        # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
         if input_mode == "Upload Video":
             if uploaded_video is not None:
                 if st.button("▶️ Mulai Proses Video", use_container_width=True):
                     import tempfile
+                    import subprocess # Tambahkan ini untuk memanggil FFmpeg
                     
-                    # 1. Simpan video asli ke file sementara
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
                         tfile.write(uploaded_video.read())
                         temp_video_path = tfile.name
                         
-                    # Path untuk video hasil (output)
-                    output_video_path = temp_video_path.replace('.mp4', '_output.mp4')
+                    # Path untuk video mentah (dari OpenCV) dan video final (untuk WA)
+                    raw_output_path = temp_video_path.replace('.mp4', '_raw.mp4')
+                    final_output_path = temp_video_path.replace('.mp4', '_final.mp4')
 
                     cap = cv2.VideoCapture(temp_video_path)
                     
-                    # Ambil properti video asli untuk merekam video baru
                     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     fps = int(cap.get(cv2.CAP_PROP_FPS))
-                    if fps == 0: fps = 30 # Default jika metadata rusak
+                    if fps == 0: fps = 30
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     
-                    # Siapkan OpenCV VideoWriter untuk merekam hasil
-                    # Menggunakan codec 'mp4v' karena paling stabil di server Linux
-                    fourcc = cv2.VideoWriter_fourcc(*'avc1')
-                    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+                    # KEMBALI MENGGUNAKAN mp4v AGAR TIDAK ERROR DI STREAMLIT CLOUD
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out = cv2.VideoWriter(raw_output_path, fourcc, fps, (width, height))
                     
-                    # Tampilan progress
                     video_screen = st.empty() 
                     progress_bar = st.progress(0)
                     
@@ -393,15 +392,12 @@ with tab1:
                     last_labels = {}
                     SKIP_FRAMES = 3 
 
-                    with st.spinner("Memproses video... (Ini membutuhkan waktu, silakan tunggu)"):
+                    with st.spinner("Memproses video... (Silakan tunggu hingga selesai)"):
                         while cap.isOpened():
                             ret, frame = cap.read()
-                            if not ret:
-                                break
+                            if not ret: break
                                 
                             frame_count += 1
-                            
-                            # Update progress bar
                             if total_frames > 0:
                                 progress_bar.progress(min(frame_count / total_frames, 1.0))
                             
@@ -423,44 +419,50 @@ with tab1:
                                             best_idx = np.argmax(sims)
                                             if float(sims[best_idx]) >= similarity_threshold:
                                                 labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
-                                
                                 last_dets = detections
                                 last_labels = labels_map
 
                             result_img = draw_detections(display_img, last_dets, last_labels)
-                            
-                            # Tampilkan "Live Preview" ke layar
                             video_screen.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), use_container_width=True)
-                            
-                            # REKAM: Simpan frame yang sudah digambar ke dalam video baru
                             out.write(result_img)
                             
-                    # Selesai memproses, tutup file
                     cap.release()
                     out.release()
                     
-                    # Bersihkan layar preview dan progress bar
+                    # KONVERSI VIDEO AGAR BISA DIKIRIM KE WHATSAPP (H.264)
+                    with st.spinner("Menyempurnakan format video untuk WhatsApp..."):
+                        try:
+                            # Memanggil FFmpeg bawaan server Linux untuk konversi ke H.264
+                            subprocess.run(['ffmpeg', '-y', '-i', raw_output_path, '-vcodec', 'libx264', final_output_path], 
+                                           check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                            download_path = final_output_path
+                        except Exception as e:
+                            # Jika FFmpeg gagal, tetap berikan video mp4v sebagai cadangan
+                            download_path = raw_output_path
+                    
                     video_screen.empty()
                     progress_bar.empty()
                     
-                    st.success("✅ Pemrosesan video selesai!")
+                    # PASTIKAN FILE BENAR-BENAR ADA SEBELUM DIBUKA
+                    if os.path.exists(download_path):
+                        st.success("✅ Pemrosesan video selesai!")
+                        with open(download_path, "rb") as file:
+                            st.download_button(
+                                label="⬇️ Download Video Hasil Deteksi (Siap Kirim WA)",
+                                data=file,
+                                file_name="FaceVision_WA_Ready.mp4",
+                                mime="video/mp4",
+                                use_container_width=True
+                            )
+                        st.video(download_path)
+                    else:
+                        st.error("❌ Terjadi kesalahan: Gagal menyimpan file video ke server.")
                     
-                    # Berikan tombol untuk MENDOWNLOAD video hasil
-                    with open(output_video_path, "rb") as file:
-                        st.download_button(
-                            label="⬇️ Download Video Hasil Deteksi (.mp4)",
-                            data=file,
-                            file_name="FaceVision_Result.mp4",
-                            mime="video/mp4",
-                            use_container_width=True
-                        )
-                    
-                    # Mencoba menampilkan di pemutar video asli Streamlit
-                    st.video(output_video_path)
-                    
-                    # Hapus file sementara dari memori server agar tidak penuh
-                    os.unlink(temp_video_path)
-                    # Catatan: output_video_path tidak dihapus langsung agar tombol download tetap bisa dipakai
+                    # Hapus file mentah untuk menghemat memori server
+                    try: os.unlink(temp_video_path)
+                    except: pass
+                    try: os.unlink(raw_output_path)
+                    except: pass
             else:
                 st.info("🎥 Upload file video (.mp4) terlebih dahulu di sebelah kiri.")
 
