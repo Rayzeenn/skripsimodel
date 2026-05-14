@@ -277,7 +277,7 @@ tab1, tab2, tab3 = st.tabs(["🖼️ Deteksi & Enhance", "🗄️ Database Wajah
 with tab1:
     col_left, col_right = st.columns([1, 1], gap="large")
 
-   with col_left:
+    with col_left:
         st.markdown("#### 📤 Input Gambar")
         input_mode = st.radio("Sumber Input", ["Upload File", "Kamera (Foto)", "Live Video (WebRTC)"], horizontal=True)
         apply_clahe_toggle = st.checkbox("Terapkan CLAHE Enhancement", value=True)
@@ -299,12 +299,10 @@ with tab1:
         elif input_mode == "Live Video (WebRTC)":
             st.markdown('<div class="info-box">🔴 <b>Live Camera Aktif.</b> Izinkan akses kamera pada browser Anda.</div>', unsafe_allow_html=True)
             
-            # Konfigurasi Server STUN untuk koneksi WebRTC yang stabil di Cloud
             RTC_CONFIGURATION = RTCConfiguration(
                 {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
             )
 
-            # Class Transformer untuk memproses setiap frame video secara real-time
             class FaceVideoProcessor(VideoTransformerBase):
                 def __init__(self):
                     self.detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
@@ -312,22 +310,17 @@ with tab1:
                     self.facenet = load_facenet()
 
                 def transform(self, frame):
-                    # Ubah frame video menjadi array gambar OpenCV
                     img = frame.to_ndarray(format="bgr24")
                     
-                    # 1. CLAHE Enhancement
                     if apply_clahe_toggle:
                         self.enhancer.update_params(clip_limit, (tile_w, tile_h))
                         processed = self.enhancer.enhance(img)
                     else:
                         processed = img.copy()
 
-                    # 2. Deteksi YOLOv5
                     detections = self.detector.detect(processed)
                     
-                    # 3. Pengenalan Wajah (FaceNet)
                     labels_map = {}
-                    # Mengambil database dari global karena session_state tidak bisa diakses dalam thread WebRTC
                     db = st.session_state.face_db 
                     if self.facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
                         for det in detections:
@@ -340,15 +333,12 @@ with tab1:
                                 if best_sim >= similarity_threshold:
                                     labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
                     
-                    # 4. Gambar Bounding Box
                     result_img = draw_detections(processed, detections, labels_map)
-                    
                     return result_img
 
-            # Menjalankan pemutar WebRTC
             webrtc_streamer(
                 key="face-recognition",
-                mode=1, # Mode SENDRECV (Kirim kamera, terima video hasil)
+                mode=1, 
                 rtc_configuration=RTC_CONFIGURATION,
                 video_transformer_factory=FaceVideoProcessor,
                 media_stream_constraints={"video": True, "audio": False},
@@ -358,62 +348,66 @@ with tab1:
     with col_right:
         st.markdown("#### 🔍 Hasil Deteksi")
 
-        if image_input is not None:
-            clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
-            processed = clahe_enhancer.enhance(image_input) if apply_clahe_toggle else image_input.copy()
-            detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
+        # Jika mode BUKAN live video, jalankan pemrosesan foto statis
+        if input_mode != "Live Video (WebRTC)":
+            if image_input is not None:
+                clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
+                processed = clahe_enhancer.enhance(image_input) if apply_clahe_toggle else image_input.copy()
+                detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
 
-            with st.spinner("Mendeteksi wajah..."):
-                detections = detector.detect(processed)
+                with st.spinner("Mendeteksi wajah..."):
+                    detections = detector.detect(processed)
 
-            labels_map = {}
-            if facenet and len(detections) > 0 and len(st.session_state.face_db["embeddings"]) > 0:
-                st.markdown("---")
-                st.markdown("#### 🧠 Pengenalan Wajah")
-                db = st.session_state.face_db
-                for i, det in enumerate(detections):
-                    face_crop = detector.crop_face(processed, det)
-                    if face_crop is None: continue
-                    
-                    emb = get_embedding(face_crop, facenet)
-                    sims = np.dot(db["embeddings"], emb)
-                    
-                    best_idx = np.argmax(sims)
-                    best_sim = float(sims[best_idx])
-                    best_name = db["names"][best_idx]
-                    
-                    # Top 3 Logic
-                    top_k = min(3, len(sims))
-                    top_indices = np.argsort(sims)[-top_k:][::-1]
-                    top3_str = ", ".join([f"{db['names'][idx]}({sims[idx]:.2f})" for idx in top_indices])
+                labels_map = {}
+                if facenet and len(detections) > 0 and len(st.session_state.face_db["embeddings"]) > 0:
+                    st.markdown("---")
+                    st.markdown("#### 🧠 Pengenalan Wajah")
+                    db = st.session_state.face_db
+                    for i, det in enumerate(detections):
+                        face_crop = detector.crop_face(processed, det)
+                        if face_crop is None: continue
+                        
+                        emb = get_embedding(face_crop, facenet)
+                        sims = np.dot(db["embeddings"], emb)
+                        
+                        best_idx = np.argmax(sims)
+                        best_sim = float(sims[best_idx])
+                        best_name = db["names"][best_idx]
+                        
+                        top_k = min(3, len(sims))
+                        top_indices = np.argsort(sims)[-top_k:][::-1]
+                        top3_str = ", ".join([f"{db['names'][idx]}({sims[idx]:.2f})" for idx in top_indices])
 
-                    if best_sim >= similarity_threshold:
-                        labels_map[(int(det[0]), int(det[1]))] = best_name
-                        badge_class, status = "badge-green", f"✅ {best_name}"
-                    else:
-                        badge_class, status = "badge-yellow", "❓ Tidak dikenal"
+                        if best_sim >= similarity_threshold:
+                            labels_map[(int(det[0]), int(det[1]))] = best_name
+                            badge_class, status = "badge-green", f"✅ {best_name}"
+                        else:
+                            badge_class, status = "badge-yellow", "❓ Tidak dikenal"
 
-                    st.markdown(f"""
-                    <div class="result-card">
-                        <span class="badge {badge_class}">Wajah #{i+1}</span>
-                        <div style="margin-top:0.5rem;font-size:1rem;font-weight:600;">{status}</div>
-                        <div style="color:#6b7280;font-size:0.8rem;margin-top:0.2rem;">Sim: {best_sim:.3f} | Top3: {top3_str}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                        st.markdown(f"""
+                        <div class="result-card">
+                            <span class="badge {badge_class}">Wajah #{i+1}</span>
+                            <div style="margin-top:0.5rem;font-size:1rem;font-weight:600;">{status}</div>
+                            <div style="color:#6b7280;font-size:0.8rem;margin-top:0.2rem;">Sim: {best_sim:.3f} | Top3: {top3_str}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-            result_img = draw_detections(processed, detections, labels_map)
-            st.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), caption=f"{'CLAHE Enhanced' if apply_clahe_toggle else 'Original'} — {len(detections)} wajah terdeteksi", use_container_width=True)
+                result_img = draw_detections(processed, detections, labels_map)
+                st.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), caption=f"{'CLAHE Enhanced' if apply_clahe_toggle else 'Original'} — {len(detections)} wajah terdeteksi", use_container_width=True)
 
-            m1, m2, m3 = st.columns(3)
-            with m1:
-                st.markdown(f'<div class="metric-card"><div class="metric-label">Wajah Terdeteksi</div><div class="metric-value">{len(detections)}</div></div>', unsafe_allow_html=True)
-            with m2:
-                st.markdown(f'<div class="metric-card"><div class="metric-label">Avg Brightness</div><div class="metric-value">{np.mean(cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)):.0f}</div></div>', unsafe_allow_html=True)
-            with m3:
-                best_conf = max([d[4] for d in detections], default=0)
-                st.markdown(f'<div class="metric-card"><div class="metric-label">Best Confidence</div><div class="metric-value">{best_conf:.2f}</div></div>', unsafe_allow_html=True)
+                m1, m2, m3 = st.columns(3)
+                with m1:
+                    st.markdown(f'<div class="metric-card"><div class="metric-label">Wajah Terdeteksi</div><div class="metric-value">{len(detections)}</div></div>', unsafe_allow_html=True)
+                with m2:
+                    st.markdown(f'<div class="metric-card"><div class="metric-label">Avg Brightness</div><div class="metric-value">{np.mean(cv2.cvtColor(processed, cv2.COLOR_BGR2GRAY)):.0f}</div></div>', unsafe_allow_html=True)
+                with m3:
+                    best_conf = max([d[4] for d in detections], default=0)
+                    st.markdown(f'<div class="metric-card"><div class="metric-label">Best Confidence</div><div class="metric-value">{best_conf:.2f}</div></div>', unsafe_allow_html=True)
+            else:
+                st.info("📷 Upload gambar atau aktifkan kamera untuk memulai deteksi.")
         else:
-            st.info("📷 Upload gambar atau aktifkan kamera untuk memulai deteksi.")
+            # Info untuk mode Live Video
+            st.info("🔴 Hasil deteksi Live Video ditampilkan langsung di pemutar kamera sebelah kiri.")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TAB 2: Database Management
