@@ -477,7 +477,7 @@ with tab1:
             # Draw boxes
             result_img = draw_detections(processed, detections)
             result_rgb = cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB)
-            st.image(result_rgb, caption=f"{'CLAHE Enhanced' if apply_clahe_toggle else 'Original'} — {len(detections)} wajah terdeteksi", use_column_width=True)
+            st.image(result_rgb, caption=f"{'CLAHE Enhanced' if apply_clahe_toggle else 'Original'} — {len(detections)} wajah terdeteksi", use_container_width=True)
 
             # Metrics
             m1, m2, m3 = st.columns(3)
@@ -499,10 +499,10 @@ with tab1:
                 with c1:
                     gray_orig = cv2.cvtColor(image_input, cv2.COLOR_BGR2GRAY)
                     st.image(cv2.cvtColor(image_input, cv2.COLOR_BGR2RGB),
-                             caption=f"Original (brightness={np.mean(gray_orig):.0f})", use_column_width=True)
+                             caption=f"Original (brightness={np.mean(gray_orig):.0f})", use_container_width=True)
                 with c2:
                     st.image(result_rgb,
-                             caption=f"CLAHE (brightness={brightness:.0f})", use_column_width=True)
+                             caption=f"CLAHE (brightness={brightness:.0f})", use_container_width=True)
 
             # Face Recognition (if database exists)
             if facenet and len(detections) > 0 and "face_db" in st.session_state and len(st.session_state.face_db["embeddings"]) > 0:
@@ -663,7 +663,7 @@ with tab2:
                 face_img = db["face_images"][name_idx]
                 face_rgb = cv2.cvtColor(face_img, cv2.COLOR_BGR2RGB)
                 with cols[idx % 4]:
-                    st.image(face_rgb, caption=name[:12], use_column_width=True)
+                    st.image(face_rgb, caption=name[:12], use_container_width=True)
 
             if st.button("🗑️ Hapus Semua Data"):
                 st.session_state.face_db = {
@@ -747,11 +747,11 @@ with tab3:
             with c1:
                 drawn_orig = draw_detections(img_bgr, dets_orig)
                 st.image(cv2.cvtColor(drawn_orig, cv2.COLOR_BGR2RGB),
-                         caption=f"Original — {len(dets_orig)} wajah", use_column_width=True)
+                         caption=f"Original — {len(dets_orig)} wajah", use_container_width=True)
             with c2:
                 drawn_enh = draw_detections(enhanced, dets_enh)
                 st.image(cv2.cvtColor(drawn_enh, cv2.COLOR_BGR2RGB),
-                         caption=f"CLAHE Enhanced — {len(dets_enh)} wajah", use_column_width=True)
+                         caption=f"CLAHE Enhanced — {len(dets_enh)} wajah", use_container_width=True)
 
 # ─── Footer ───────────────────────────────────────────────────────────────────
 st.markdown("---")
