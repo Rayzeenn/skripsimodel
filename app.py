@@ -6,6 +6,8 @@ import streamlit as st
 import torch
 from PIL import Image
 import pathlib
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, RTCConfiguration
+import av
 
 # ─── FIX BUG PYTORCH 2.6+ (SAFE GLOBALS & MONKEY PATCH) ───────────────────────
 # 1. Paksa override fungsi torch.load sebagai lapis keamanan utama
@@ -275,21 +277,83 @@ tab1, tab2, tab3 = st.tabs(["🖼️ Deteksi & Enhance", "🗄️ Database Wajah
 with tab1:
     col_left, col_right = st.columns([1, 1], gap="large")
 
-    with col_left:
+   with col_left:
         st.markdown("#### 📤 Input Gambar")
-        input_mode = st.radio("Sumber Input", ["Upload File", "Kamera"], horizontal=True)
+        input_mode = st.radio("Sumber Input", ["Upload File", "Kamera (Foto)", "Live Video (WebRTC)"], horizontal=True)
+        apply_clahe_toggle = st.checkbox("Terapkan CLAHE Enhancement", value=True)
 
         image_input = None
         if input_mode == "Upload File":
             uploaded = st.file_uploader("Pilih gambar", type=["jpg", "jpeg", "png", "bmp", "webp"])
             if uploaded:
-                image_input = cv2.cvtColor(np.array(Image.open(uploaded).convert("RGB")), cv2.COLOR_RGB2BGR)
-        else:
+                from PIL import ImageOps
+                # Membaca EXIF agar gambar tegak secara otomatis
+                pil_img = ImageOps.exif_transpose(Image.open(uploaded)).convert("RGB")
+                image_input = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+                
+        elif input_mode == "Kamera (Foto)":
             camera_img = st.camera_input("Ambil foto")
             if camera_img:
                 image_input = cv2.cvtColor(np.array(Image.open(camera_img).convert("RGB")), cv2.COLOR_RGB2BGR)
+                
+        elif input_mode == "Live Video (WebRTC)":
+            st.markdown('<div class="info-box">🔴 <b>Live Camera Aktif.</b> Izinkan akses kamera pada browser Anda.</div>', unsafe_allow_html=True)
+            
+            # Konfigurasi Server STUN untuk koneksi WebRTC yang stabil di Cloud
+            RTC_CONFIGURATION = RTCConfiguration(
+                {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+            )
 
-        apply_clahe_toggle = st.checkbox("Terapkan CLAHE Enhancement", value=True)
+            # Class Transformer untuk memproses setiap frame video secara real-time
+            class FaceVideoProcessor(VideoTransformerBase):
+                def __init__(self):
+                    self.detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
+                    self.enhancer = CLAHEEnhancer(clip_limit, (tile_w, tile_h))
+                    self.facenet = load_facenet()
+
+                def transform(self, frame):
+                    # Ubah frame video menjadi array gambar OpenCV
+                    img = frame.to_ndarray(format="bgr24")
+                    
+                    # 1. CLAHE Enhancement
+                    if apply_clahe_toggle:
+                        self.enhancer.update_params(clip_limit, (tile_w, tile_h))
+                        processed = self.enhancer.enhance(img)
+                    else:
+                        processed = img.copy()
+
+                    # 2. Deteksi YOLOv5
+                    detections = self.detector.detect(processed)
+                    
+                    # 3. Pengenalan Wajah (FaceNet)
+                    labels_map = {}
+                    # Mengambil database dari global karena session_state tidak bisa diakses dalam thread WebRTC
+                    db = st.session_state.face_db 
+                    if self.facenet and len(detections) > 0 and len(db["embeddings"]) > 0:
+                        for det in detections:
+                            face_crop = self.detector.crop_face(processed, det)
+                            if face_crop is not None:
+                                emb = get_embedding(face_crop, self.facenet)
+                                sims = np.dot(db["embeddings"], emb)
+                                best_idx = np.argmax(sims)
+                                best_sim = float(sims[best_idx])
+                                if best_sim >= similarity_threshold:
+                                    labels_map[(int(det[0]), int(det[1]))] = db["names"][best_idx]
+                    
+                    # 4. Gambar Bounding Box
+                    result_img = draw_detections(processed, detections, labels_map)
+                    
+                    return result_img
+
+            # Menjalankan pemutar WebRTC
+            webrtc_streamer(
+                key="face-recognition",
+                mode=1, # Mode SENDRECV (Kirim kamera, terima video hasil)
+                rtc_configuration=RTC_CONFIGURATION,
+                video_transformer_factory=FaceVideoProcessor,
+                media_stream_constraints={"video": True, "audio": False},
+                async_transform=True
+            )
 
     with col_right:
         st.markdown("#### 🔍 Hasil Deteksi")
