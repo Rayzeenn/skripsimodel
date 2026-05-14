@@ -357,16 +357,33 @@ with tab1:
         if input_mode == "Upload Video":
             if uploaded_video is not None:
                 if st.button("▶️ Mulai Proses Video", use_container_width=True):
-                    # 1. Simpan video ke file sementara agar bisa dibaca OpenCV
                     import tempfile
+                    
+                    # 1. Simpan video asli ke file sementara
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tfile:
                         tfile.write(uploaded_video.read())
                         temp_video_path = tfile.name
+                        
+                    # Path untuk video hasil (output)
+                    output_video_path = temp_video_path.replace('.mp4', '_output.mp4')
 
                     cap = cv2.VideoCapture(temp_video_path)
                     
-                    # Placeholder untuk merender frame video seperti layar bioskop
+                    # Ambil properti video asli untuk merekam video baru
+                    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    fps = int(cap.get(cv2.CAP_PROP_FPS))
+                    if fps == 0: fps = 30 # Default jika metadata rusak
+                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    
+                    # Siapkan OpenCV VideoWriter untuk merekam hasil
+                    # Menggunakan codec 'mp4v' karena paling stabil di server Linux
+                    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                    out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+                    
+                    # Tampilan progress
                     video_screen = st.empty() 
+                    progress_bar = st.progress(0)
                     
                     detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
                     clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
@@ -374,11 +391,9 @@ with tab1:
                     frame_count = 0
                     last_dets = []
                     last_labels = {}
-                    
-                    # Trik Optimasi untuk i3: Skip 2 frame agar video diputar lebih cepat
                     SKIP_FRAMES = 3 
 
-                    with st.spinner("Memproses video... (Silakan tunggu hingga selesai)"):
+                    with st.spinner("Memproses video... (Ini membutuhkan waktu, silakan tunggu)"):
                         while cap.isOpened():
                             ret, frame = cap.read()
                             if not ret:
@@ -386,12 +401,15 @@ with tab1:
                                 
                             frame_count += 1
                             
+                            # Update progress bar
+                            if total_frames > 0:
+                                progress_bar.progress(min(frame_count / total_frames, 1.0))
+                            
                             if apply_clahe_toggle:
                                 display_img = clahe_enhancer.enhance(frame)
                             else:
                                 display_img = frame.copy()
 
-                            # Hanya proses AI di frame tertentu, sisanya pakai deteksi terakhir
                             if frame_count % SKIP_FRAMES == 0 or frame_count == 1:
                                 detections = detector.detect(display_img)
                                 labels_map = {}
@@ -411,12 +429,38 @@ with tab1:
 
                             result_img = draw_detections(display_img, last_dets, last_labels)
                             
-                            # Update gambar di layar
+                            # Tampilkan "Live Preview" ke layar
                             video_screen.image(cv2.cvtColor(result_img, cv2.COLOR_BGR2RGB), use_container_width=True)
                             
+                            # REKAM: Simpan frame yang sudah digambar ke dalam video baru
+                            out.write(result_img)
+                            
+                    # Selesai memproses, tutup file
                     cap.release()
-                    os.unlink(temp_video_path) # Hapus file sampah
-                    st.success("✅ Pemutaran video selesai!")
+                    out.release()
+                    
+                    # Bersihkan layar preview dan progress bar
+                    video_screen.empty()
+                    progress_bar.empty()
+                    
+                    st.success("✅ Pemrosesan video selesai!")
+                    
+                    # Berikan tombol untuk MENDOWNLOAD video hasil
+                    with open(output_video_path, "rb") as file:
+                        st.download_button(
+                            label="⬇️ Download Video Hasil Deteksi (.mp4)",
+                            data=file,
+                            file_name="FaceVision_Result.mp4",
+                            mime="video/mp4",
+                            use_container_width=True
+                        )
+                    
+                    # Mencoba menampilkan di pemutar video asli Streamlit
+                    st.video(output_video_path)
+                    
+                    # Hapus file sementara dari memori server agar tidak penuh
+                    os.unlink(temp_video_path)
+                    # Catatan: output_video_path tidak dihapus langsung agar tombol download tetap bisa dipakai
             else:
                 st.info("🎥 Upload file video (.mp4) terlebih dahulu di sebelah kiri.")
 
