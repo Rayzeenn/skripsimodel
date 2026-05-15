@@ -110,7 +110,7 @@ class YOLOv5FaceDetector:
         self.model = None
 
         if not os.path.exists(weights_path):
-            st.sidebar.error(f"❌ YOLOv5 weights tidak ditemukan:\n`{weights_path}`")
+            st.sidebar.error(f"YOLOv5 weights tidak ditemukan:\n`{weights_path}`")
             return
 
         yolo_dir = os.path.dirname(os.path.dirname(weights_path))
@@ -125,7 +125,7 @@ class YOLOv5FaceDetector:
             self.model.eval()
             self.loaded = True
         except Exception as e:
-            st.sidebar.error(f"❌ Gagal memuat YOLOv5: {e}")
+            st.sidebar.error(f"Gagal memuat YOLOv5: {e}")
 
     def detect(self, image_bgr: np.ndarray) -> list:
         if not self.loaded:
@@ -235,22 +235,22 @@ def draw_detections(image_bgr: np.ndarray, detections: list, labels_map: dict = 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown('<div class="main-title" style="font-size:1.3rem;">⚙️ Konfigurasi</div>', unsafe_allow_html=True)
-    st.markdown("### 📁 Model Path")
+    st.markdown("### Model Path")
     yolo_weights = st.text_input("YOLOv5-Face Weights", value="best.pt")
     yolo_repo_path = st.text_input("YOLOv5-Face Repo Path", value="yolov5-face")
 
     st.markdown("---")
-    st.markdown("### 🎛️ CLAHE Parameters")
+    st.markdown("### CLAHE Parameters")
     clip_limit = st.slider("Clip Limit", 0.5, 10.0, 2.0, 0.5)
     tile_w = st.select_slider("Tile Width", options=[4, 8, 16, 32], value=8)
     tile_h = st.select_slider("Tile Height", options=[4, 8, 16, 32], value=8)
 
     st.markdown("---")
-    st.markdown("### 🔍 Detection Settings")
+    st.markdown("### Detection Settings")
     conf_thresh = st.slider("Confidence Threshold", 0.1, 0.9, 0.4, 0.05)
     similarity_threshold = st.slider("Similarity Threshold", 0.3, 0.9, 0.6, 0.05)
     
-    device_badge = "🟢 GPU (CUDA)" if torch.cuda.is_available() else "🟡 CPU"
+    device_badge = "GPU (CUDA)" if torch.cuda.is_available() else "🟡 CPU"
     st.markdown(f'<br><span class="badge badge-cyan">{device_badge}</span>', unsafe_allow_html=True)
 
 # ─── Load Models ──────────────────────────────────────────────────────────────
@@ -283,7 +283,7 @@ with tab1:
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
-        st.markdown("#### 📤 Input Media")
+        st.markdown("#### Input Media")
         # Tambahkan opsi "Upload Video" di pilihan radio button
         input_mode = st.radio("Sumber Input", ["Upload Gambar", "Kamera (Foto)", "Upload Video", "Live Video (WebRTC)"], horizontal=True)
         apply_clahe_toggle = st.checkbox("Terapkan CLAHE Enhancement", value=True)
@@ -306,10 +306,10 @@ with tab1:
         elif input_mode == "Upload Video":
             uploaded_video = st.file_uploader("Upload file video", type=["mp4", "avi", "mov", "mkv"])
             if uploaded_video:
-                st.success("🎥 Video berhasil dimuat! Klik tombol 'Mulai Proses Video' di sebelah kanan.")
+                st.success("Video berhasil dimuat! Klik tombol 'Mulai Proses Video' di sebelah kanan.")
                 
         elif input_mode == "Live Video (WebRTC)":
-            st.markdown('<div class="info-box">🔴 <b>Live Camera Aktif.</b> (Performa bergantung pada CPU perangkat)</div>', unsafe_allow_html=True)
+            st.markdown('<div class="info-box"> <b>Live Camera Aktif.</b> (Performa bergantung pada CPU perangkat)</div>', unsafe_allow_html=True)
             
             RTC_CONFIGURATION = RTCConfiguration({"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]})
 
@@ -358,7 +358,7 @@ with tab1:
             webrtc_streamer(key="face-recognition", mode=WebRtcMode.SENDRECV, rtc_configuration=RTC_CONFIGURATION, video_transformer_factory=FaceVideoProcessor, media_stream_constraints={"video": True, "audio": False}, async_transform=True)
 
     with col_right:
-        st.markdown("#### 🔍 Hasil Deteksi")
+        st.markdown("####Hasil Deteksi")
 
         # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
         # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
@@ -490,7 +490,7 @@ with tab1:
                 labels_map = {}
                 if facenet and len(detections) > 0 and len(st.session_state.face_db["embeddings"]) > 0:
                     st.markdown("---")
-                    st.markdown("#### 🧠 Pengenalan Wajah")
+                    st.markdown("####Pengenalan Wajah")
                     db = st.session_state.face_db
                     for i, det in enumerate(detections):
                         face_crop = detector.crop_face(processed, det)
@@ -533,7 +533,7 @@ with tab1:
 # TAB 2: Database Management
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab2:
-    st.markdown("#### 🗄️ Database Wajah (Gallery)")
+    st.markdown("####Database Wajah (Gallery)")
     col_add, col_list = st.columns([1, 1], gap="large")
 
     with col_add:
@@ -541,7 +541,7 @@ with tab2:
         person_name = st.text_input("Nama Orang", placeholder="Contoh: Budi Santoso")
         face_upload = st.file_uploader("Upload foto wajah", type=["jpg", "jpeg", "png"], key="db_upload")
 
-        if st.button("💾 Tambah ke Database", disabled=(not person_name or face_upload is None)):
+        if st.button("Tambah ke Database", disabled=(not person_name or face_upload is None)):
             if facenet and face_upload and person_name.strip():
                 img_bgr = cv2.cvtColor(np.array(Image.open(face_upload).convert("RGB")), cv2.COLOR_RGB2BGR)
                 clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
@@ -565,9 +565,9 @@ with tab2:
 
         # --- FITUR NPZ YANG DIKEMBALIKAN ---
         st.markdown("---")
-        st.markdown("**📂 Load dari .npz File**")
+        st.markdown("**Load dari .npz File**")
         npz_file = st.file_uploader("Upload file .npz (dari Kaggle preprocessing)", type=["npz"], key="npz_upload")
-        if st.button("📥 Load NPZ Database", disabled=(npz_file is None)):
+        if st.button("Load NPZ Database", disabled=(npz_file is None)):
             if npz_file:
                 with st.spinner("Memuat database..."):
                     try:
@@ -611,7 +611,7 @@ with tab2:
         # ------------------------------------
 
     with col_list:
-        st.markdown("**📋 Isi Database Saat Ini**")
+        st.markdown("**Isi Database Saat Ini**")
         db = st.session_state.face_db
         if len(db["names"]) > 0:
             unique_names = list(set(db["names"]))[:12]
@@ -620,14 +620,14 @@ with tab2:
                 name_idx = db["names"].index(name)
                 face_rgb = cv2.cvtColor(db["face_images"][name_idx], cv2.COLOR_BGR2RGB)
                 with cols[idx % 4]: st.image(face_rgb, caption=name[:12], use_container_width=True)
-            if st.button("🗑️ Hapus Semua Data"):
+            if st.button("Hapus Semua Data"):
                 st.session_state.face_db = { "embeddings": np.zeros((0, 512), dtype="float32"), "names": [], "face_images": [] }
                 st.rerun()
 with tab3:
-    st.markdown("#### 📊 Evaluasi Efek CLAHE")
+    st.markdown("#### Evaluasi Efek CLAHE")
     eval_files = st.file_uploader("Upload gambar untuk evaluasi", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="eval_upload")
 
-    if eval_files and st.button("▶️ Jalankan Evaluasi"):
+    if eval_files and st.button("▶️Jalankan Evaluasi"):
         detector = load_yolo(yolo_weights, yolo_repo_path, conf_thresh)
         clahe_enhancer.update_params(clip_limit, (tile_w, tile_h))
         results = []
