@@ -235,18 +235,18 @@ def draw_detections(image_bgr: np.ndarray, detections: list, labels_map: dict = 
 # ─── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown('<div class="main-title" style="font-size:1.3rem;">⚙️ Konfigurasi</div>', unsafe_allow_html=True)
-    st.markdown("### Model Path")
+    st.markdown("Model Path")
     yolo_weights = st.text_input("YOLOv5-Face Weights", value="best.pt")
     yolo_repo_path = st.text_input("YOLOv5-Face Repo Path", value="yolov5-face")
 
     st.markdown("---")
-    st.markdown("### CLAHE Parameters")
+    st.markdown("CLAHE Parameters")
     clip_limit = st.slider("Clip Limit", 0.5, 10.0, 2.0, 0.5)
     tile_w = st.select_slider("Tile Width", options=[4, 8, 16, 32], value=8)
     tile_h = st.select_slider("Tile Height", options=[4, 8, 16, 32], value=8)
 
     st.markdown("---")
-    st.markdown("### Detection Settings")
+    st.markdown("Detection Settings")
     conf_thresh = st.slider("Confidence Threshold", 0.1, 0.9, 0.4, 0.05)
     similarity_threshold = st.slider("Similarity Threshold", 0.3, 0.9, 0.6, 0.05)
     
@@ -264,7 +264,7 @@ facenet = load_facenet()
 clahe_enhancer = CLAHEEnhancer(clip_limit, (tile_w, tile_h))
 
 # ─── Main UI ──────────────────────────────────────────────────────────────────
-st.markdown('<div class="main-title">👁️ FaceVision CLAHE</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-title">👁️ FaceVision</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-title">Deteksi Wajah Real-Time · YOLOv5-Face + CLAHE Enhancement · FaceNet VGGFace2</div>', unsafe_allow_html=True)
 
 if "face_db" not in st.session_state:
@@ -283,7 +283,7 @@ with tab1:
     col_left, col_right = st.columns([1, 1], gap="large")
 
     with col_left:
-        st.markdown("#### Input Media")
+        st.markdown("Input Media")
         # Tambahkan opsi "Upload Video" di pilihan radio button
         input_mode = st.radio("Sumber Input", ["Upload Gambar", "Kamera (Foto)", "Upload Video", "Live Video (WebRTC)"], horizontal=True)
         apply_clahe_toggle = st.checkbox("Terapkan CLAHE Enhancement", value=True)
@@ -358,7 +358,7 @@ with tab1:
             webrtc_streamer(key="face-recognition", mode=WebRtcMode.SENDRECV, rtc_configuration=RTC_CONFIGURATION, video_transformer_factory=FaceVideoProcessor, media_stream_constraints={"video": True, "audio": False}, async_transform=True)
 
     with col_right:
-        st.markdown("####Hasil Deteksi")
+        st.markdown("Hasil Deteksi")
 
         # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
         # LOGIKA KHUSUS UNTUK UPLOAD VIDEO
@@ -490,7 +490,7 @@ with tab1:
                 labels_map = {}
                 if facenet and len(detections) > 0 and len(st.session_state.face_db["embeddings"]) > 0:
                     st.markdown("---")
-                    st.markdown("####Pengenalan Wajah")
+                    st.markdown("Pengenalan Wajah")
                     db = st.session_state.face_db
                     for i, det in enumerate(detections):
                         face_crop = detector.crop_face(processed, det)
@@ -533,7 +533,7 @@ with tab1:
 # TAB 2: Database Management
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab2:
-    st.markdown("####Database Wajah (Gallery)")
+    st.markdown("Database Wajah")
     col_add, col_list = st.columns([1, 1], gap="large")
 
     with col_add:
@@ -624,7 +624,7 @@ with tab2:
                 st.session_state.face_db = { "embeddings": np.zeros((0, 512), dtype="float32"), "names": [], "face_images": [] }
                 st.rerun()
 with tab3:
-    st.markdown("#### Evaluasi Efek CLAHE")
+    st.markdown("Evaluasi Efek CLAHE")
     eval_files = st.file_uploader("Upload gambar untuk evaluasi", type=["jpg", "jpeg", "png"], accept_multiple_files=True, key="eval_upload")
 
     if eval_files and st.button("▶️Jalankan Evaluasi"):
